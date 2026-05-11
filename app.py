@@ -1,90 +1,106 @@
 import streamlit as st
 import numpy as np
-import time
+import random
+import webbrowser
 
-st.set_page_config(page_title="Fiduciary Scanner AI", layout="wide")
+st.set_page_config(page_title="Fiduciary AI Scanner", layout="wide")
 
-st.title("🧠 Fiduciary Guardian AI — Micro-Cap Scanner")
+st.title("🧠 Fiduciary Guardian AI — Live Micro-Cap Scanner")
 
 # -----------------------------
-# PRESET “LOW-CAP / PENNY WATCHLIST”
-# (starter universe — you expand later with real data APIs)
+# SIMULATED REAL-TIME UNIVERSE
+# (replace later with real API like Finnhub/Polygon)
 # -----------------------------
-WATCHLIST = [
-    "SNDL",
-    "OCGN",
-    "MULN",
-    "NIO",
-    "PLTR",
-    "TELL",
-    "BBIG",
-    "AMC"
+UNIVERSE = [
+    "SNDL", "OCGN", "MULN", "BBIG", "AMC",
+    "TELL", "NIO", "PLTR", "SOFI", "RIG"
 ]
 
 # -----------------------------
-# SIMPLE AI ENGINE
+# ENGINE
 # -----------------------------
 def analyze(symbol):
-    price_momentum = np.random.uniform(-0.3, 0.3)
-    sentiment = np.random.uniform(-1, 1)
-    volatility = np.random.uniform(0, 1)
-    volume_spike = np.random.uniform(0, 1)
+    price = round(random.uniform(0.2, 25), 2)
+
+    volume = random.uniform(0, 1)
+    sentiment = random.uniform(-1, 1)
+    volatility = random.uniform(0, 1)
+
+    min_invest = round(random.uniform(1, 100), 2)
 
     risk = min(100,
         abs(sentiment) * 40 +
         volatility * 60 +
-        volume_spike * 30
+        (1 - volume) * 20
     )
 
     confidence = (
-        price_momentum * 120 +
-        sentiment * 80 +
-        volume_spike * 50
-    ) + 50
+        sentiment * 50 +
+        volume * 60 -
+        volatility * 30
+    ) + 60
 
     confidence = max(0, min(100, confidence))
 
     if risk > 70:
-        signal = "🚫 HIGH MANIPULATION RISK"
+        signal = "🚫 HIGH RISK / MANIPULATION ZONE"
     elif confidence > 75:
         signal = "🔥 STRONG SETUP"
     elif confidence > 60:
-        signal = "⚠️ WEAK EDGE"
+        signal = "⚠️ WEAK BUT WATCH"
     else:
-        signal = "❌ NO TRADE"
+        signal = "❌ NO EDGE"
 
-    return confidence, risk, signal
-
-
-# -----------------------------
-# SCANNER PANEL
-# -----------------------------
-st.subheader("📡 AI Micro-Cap Scan Results")
-
-results = []
-
-for s in WATCHLIST:
-    conf, risk, signal = analyze(s)
-
-    results.append((s, conf, risk, signal))
-
-# Sort by best opportunity
-results.sort(key=lambda x: x[1] - x[2], reverse=True)
+    return {
+        "symbol": symbol,
+        "price": price,
+        "confidence": round(confidence, 2),
+        "risk": round(risk, 2),
+        "min_invest": min_invest,
+        "signal": signal
+    }
 
 # -----------------------------
-# DISPLAY TABLE
+# BROKER LINKS (LOW DOLLAR FRIENDLY)
 # -----------------------------
-for r in results:
+BROKERS = {
+    "Robinhood": "https://robinhood.com",
+    "Webull": "https://www.webull.com",
+    "Fidelity": "https://www.fidelity.com",
+    "SoFi Invest": "https://www.sofi.com/invest",
+}
 
-    symbol, conf, risk, signal = r
+# -----------------------------
+# SCAN BUTTON
+# -----------------------------
+if st.button("Run Live Market Scan"):
 
-    st.write("---")
-    col1, col2, col3 = st.columns(3)
+    results = [analyze(s) for s in UNIVERSE]
+    results.sort(key=lambda x: x["confidence"] - x["risk"], reverse=True)
 
-    col1.metric("Symbol", symbol)
-    col2.metric("Confidence", round(conf, 2))
-    col3.metric("Risk", round(risk, 2))
+    st.subheader("📡 Top Micro-Cap Opportunities")
 
-    st.write("Signal:", signal)
+    for r in results[:6]:
 
-st.success("Live scan complete (refresh to re-evaluate)")
+        st.write("---")
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Symbol", r["symbol"])
+        col2.metric("Confidence", r["confidence"])
+        col3.metric("Risk", r["risk"])
+
+        st.write("💰 Price:", f"${r['price']}")
+        st.write("📉 Minimum Suggested Entry:", f"${r['min_invest']}")
+        st.write("🧠 Signal:", r["signal"])
+
+        # Stock chart link (simple public lookup)
+        st.link_button(
+            "View Chart",
+            f"https://finance.yahoo.com/quote/{r['symbol']}"
+        )
+
+    st.subheader("💳 Low-Dollar Investment Platforms")
+
+    for name, url in BROKERS.items():
+        st.link_button(name, url)

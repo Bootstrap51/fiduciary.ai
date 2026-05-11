@@ -3,43 +3,67 @@ import numpy as np
 import requests
 
 # =============================
-# CONFIG
+# APP CONFIG
 # =============================
 st.set_page_config(page_title="Fiduciary Guardian AI", layout="wide")
 
 st.title("🧠 Fiduciary Guardian AI — Live Market Intelligence")
 
 # =============================
-# API KEY INPUT
+# SIDEBAR — GUIDED API SETUP
 # =============================
-st.sidebar.title("🔐 Setup")
+st.sidebar.title("🔐 Activate Guardian AI")
+
+st.sidebar.markdown("""
+### Step 1  
+Create a free API key here:
+
+👉 https://finnhub.io
+
+### Step 2  
+Copy your API key
+
+### Step 3  
+Paste it below to activate live scanning
+""")
 
 FINNHUB_KEY = st.sidebar.text_input(
-    "Enter Finnhub API Key",
+    "Paste Finnhub API Key Here",
     type="password"
 )
 
 if not FINNHUB_KEY:
-    st.warning("Enter your Finnhub API key in the sidebar to activate live data.")
+    st.warning("🔐 Please enter your Finnhub API key in the sidebar to start Guardian AI.")
     st.stop()
 
 # =============================
-# INTRO
+# INTRO SECTION
 # =============================
 st.markdown("""
-## 📌 System Overview
+## 📌 What This System Does
 
-Live AI-style market scanner using:
-- Real stock prices
-- News sentiment (when available)
-- Market volatility modeling
-- Risk-adjusted opportunity scoring
+This is a real-time market intelligence engine that:
+
+- Tracks live stock prices
+- Measures volatility and momentum
+- Analyzes news sentiment when available
+- Scores opportunities using risk-adjusted logic
+
+---
+
+## ⚙️ How to Use
+
+1. API key activates system  
+2. Run live market scan  
+3. Review ranked opportunities  
+4. Analyze individual stocks  
+5. Use broker links for execution  
 """)
 
 st.write("---")
 
 # =============================
-# DATA FUNCTIONS
+# REAL DATA FUNCTIONS
 # =============================
 def get_price_data(symbol):
     url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
@@ -60,9 +84,6 @@ def get_price_data(symbol):
     }
 
 
-# =============================
-# SENTIMENT (FIXED + SAFE)
-# =============================
 def get_sentiment(symbol):
     url = f"https://finnhub.io/api/v1/news-sentiment?symbol={symbol}&token={FINNHUB_KEY}"
 
@@ -78,7 +99,7 @@ def get_sentiment(symbol):
         sentiment = 0
 
     buzz = 0
-    if buzz_data and isinstance(buzz_data, dict):
+    if isinstance(buzz_data, dict):
         buzz = buzz_data.get("articlesInLastWeek", 0)
 
     return {
@@ -87,15 +108,11 @@ def get_sentiment(symbol):
     }
 
 
-# =============================
-# FALLBACK SENTIMENT (IMPORTANT)
-# =============================
 def fallback_sentiment():
     return {
         "sentiment": np.random.uniform(-0.3, 0.3),
         "buzz": np.random.uniform(0.1, 0.6)
     }
-
 
 # =============================
 # CORE ENGINE
@@ -105,7 +122,6 @@ def analyze(symbol):
     price = get_price_data(symbol)
     sentiment = get_sentiment(symbol)
 
-    # fallback if API returns no signal
     if sentiment["sentiment"] == 0 and sentiment["buzz"] == 0:
         sentiment = fallback_sentiment()
 
@@ -141,7 +157,6 @@ def analyze(symbol):
         "buzz": round(sentiment["buzz"], 2),
         "signal": signal
     }
-
 
 # =============================
 # WATCHLIST

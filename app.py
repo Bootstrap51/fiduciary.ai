@@ -2,34 +2,89 @@ import streamlit as st
 import numpy as np
 import time
 
-st.title("🧠 Fiduciary Guardian AI")
+st.set_page_config(page_title="Fiduciary Scanner AI", layout="wide")
 
-symbol = st.text_input("Enter Stock Symbol", "AAPL")
-start = st.button("Start")
+st.title("🧠 Fiduciary Guardian AI — Micro-Cap Scanner")
 
-def engine():
-    return {
-        "confidence": np.random.randint(40, 95),
-        "risk": np.random.randint(10, 90),
-        "sentiment": np.random.uniform(-1, 1),
-    }
+# -----------------------------
+# PRESET “LOW-CAP / PENNY WATCHLIST”
+# (starter universe — you expand later with real data APIs)
+# -----------------------------
+WATCHLIST = [
+    "SNDL",
+    "OCGN",
+    "MULN",
+    "NIO",
+    "PLTR",
+    "TELL",
+    "BBIG",
+    "AMC"
+]
 
-if start:
-    box = st.empty()
+# -----------------------------
+# SIMPLE AI ENGINE
+# -----------------------------
+def analyze(symbol):
+    price_momentum = np.random.uniform(-0.3, 0.3)
+    sentiment = np.random.uniform(-1, 1)
+    volatility = np.random.uniform(0, 1)
+    volume_spike = np.random.uniform(0, 1)
 
-    for _ in range(50):
-        data = engine()
+    risk = min(100,
+        abs(sentiment) * 40 +
+        volatility * 60 +
+        volume_spike * 30
+    )
 
-        with box.container():
-            st.metric("Confidence", data["confidence"])
-            st.metric("Risk", data["risk"])
-            st.metric("Sentiment", round(data["sentiment"], 2))
+    confidence = (
+        price_momentum * 120 +
+        sentiment * 80 +
+        volume_spike * 50
+    ) + 50
 
-            if data["risk"] > 70:
-                st.error("High Risk Zone")
-            elif data["confidence"] > 75:
-                st.success("Strong Signal")
-            else:
-                st.warning("Neutral Zone")
+    confidence = max(0, min(100, confidence))
 
-        time.sleep(1)
+    if risk > 70:
+        signal = "🚫 HIGH MANIPULATION RISK"
+    elif confidence > 75:
+        signal = "🔥 STRONG SETUP"
+    elif confidence > 60:
+        signal = "⚠️ WEAK EDGE"
+    else:
+        signal = "❌ NO TRADE"
+
+    return confidence, risk, signal
+
+
+# -----------------------------
+# SCANNER PANEL
+# -----------------------------
+st.subheader("📡 AI Micro-Cap Scan Results")
+
+results = []
+
+for s in WATCHLIST:
+    conf, risk, signal = analyze(s)
+
+    results.append((s, conf, risk, signal))
+
+# Sort by best opportunity
+results.sort(key=lambda x: x[1] - x[2], reverse=True)
+
+# -----------------------------
+# DISPLAY TABLE
+# -----------------------------
+for r in results:
+
+    symbol, conf, risk, signal = r
+
+    st.write("---")
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Symbol", symbol)
+    col2.metric("Confidence", round(conf, 2))
+    col3.metric("Risk", round(risk, 2))
+
+    st.write("Signal:", signal)
+
+st.success("Live scan complete (refresh to re-evaluate)")

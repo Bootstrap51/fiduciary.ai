@@ -3,50 +3,53 @@ import numpy as np
 import requests
 
 # =============================
-# CONFIG
+# APP CONFIG
 # =============================
 st.set_page_config(page_title="Fiduciary Guardian AI", layout="wide")
 
-FINNHUB_KEY = "PASTE_YOUR_API_KEY_HERE"
+st.title("🧠 Fiduciary Guardian AI — Live Market Intelligence")
+
+# =============================
+# API INPUT (USER PROVIDED)
+# =============================
+st.sidebar.title("🔐 Setup")
+
+FINNHUB_KEY = st.sidebar.text_input(
+    "Enter Finnhub API Key",
+    type="password"
+)
+
+if not FINNHUB_KEY:
+    st.warning("Enter your Finnhub API key in the sidebar to activate live market data.")
+    st.stop()
 
 # =============================
 # INTRO SECTION
 # =============================
-st.title("🧠 Fiduciary Guardian AI — Live Market Intelligence System")
-
 st.markdown("""
-## 📌 What this system does
+## 📌 System Overview
 
-This is a **real-time market intelligence scanner** that combines:
+This tool analyzes live financial markets using:
 
-- Live stock price data
+- Real-time stock pricing
 - News sentiment scoring
-- Volatility + momentum detection
+- Volatility + momentum modeling
 - Risk-adjusted opportunity ranking
 
 ---
 
-## ⚙️ Purpose
+## 🧭 How to use
 
-Built to help identify:
-- Micro-cap and momentum opportunities
-- High-risk manipulated price movements
-- Low-capital entry points (fractional investing friendly)
-
----
-
-## 🧭 Workflow
-
-1. Run live market scan  
+1. Run live scanner  
 2. Review ranked opportunities  
-3. Analyze any custom stock  
-4. Choose broker platform if desired  
+3. Analyze any stock manually  
+4. Use broker links if desired  
 """)
 
 st.write("---")
 
 # =============================
-# DATA FUNCTIONS (REAL API)
+# REAL DATA FUNCTIONS
 # =============================
 def get_price_data(symbol):
     url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
@@ -75,7 +78,7 @@ def get_sentiment(symbol):
     buzz = r.get("buzz", {}).get("articlesInLastWeek", 0)
 
     return {
-        "sentiment": sentiment * 2,  # scale up
+        "sentiment": sentiment * 2,
         "buzz": min(buzz / 50, 1)
     }
 
@@ -121,7 +124,7 @@ def analyze(symbol):
     }
 
 # =============================
-# WATCHLIST (starter universe)
+# WATCHLIST
 # =============================
 WATCHLIST = [
     "SNDL", "OCGN", "MULN", "BBIG",
@@ -129,7 +132,7 @@ WATCHLIST = [
 ]
 
 # =============================
-# SECTION 1 — LIVE SCANNER
+# LIVE SCANNER
 # =============================
 st.header("📡 Live Market Scanner")
 
@@ -150,7 +153,7 @@ if st.button("Run Scan"):
 
         st.write("💰 Price:", f"${r['price']}")
         st.write("🧠 Sentiment:", r["sentiment"])
-        st.write("📊 News Buzz:", r["buzz"])
+        st.write("📊 Buzz:", r["buzz"])
         st.write("⚡ Signal:", r["signal"])
 
         st.link_button(
@@ -159,7 +162,7 @@ if st.button("Run Scan"):
         )
 
 # =============================
-# SECTION 2 — CUSTOM ANALYSIS
+# CUSTOM ANALYSIS
 # =============================
 st.write("---")
 st.header("🔍 Analyze Any Stock")
@@ -188,7 +191,7 @@ if st.button("Analyze") and user_symbol:
     )
 
 # =============================
-# SECTION 3 — INVESTMENT PLATFORMS
+# BROKER LINKS
 # =============================
 st.write("---")
 st.header("💳 Low-Dollar Investment Platforms")

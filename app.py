@@ -1,109 +1,144 @@
 import streamlit as st
 import numpy as np
-import random
+import requests
 
+# =============================
+# CONFIG
+# =============================
 st.set_page_config(page_title="Fiduciary Guardian AI", layout="wide")
 
-# -----------------------------
-# INTRO SECTION (FIRST THING USERS SEE)
-# -----------------------------
-st.title("🧠 Fiduciary Guardian AI")
+FINNHUB_KEY = "PASTE_YOUR_API_KEY_HERE"
+
+# =============================
+# INTRO SECTION
+# =============================
+st.title("🧠 Fiduciary Guardian AI — Live Market Intelligence System")
 
 st.markdown("""
-## 📌 What this is
+## 📌 What this system does
 
-This system is a **real-time market intelligence scanner** designed to:
+This is a **real-time market intelligence scanner** that combines:
 
-- Detect low-cap and micro-cap opportunities
-- Evaluate risk vs reward probabilistically
-- Identify manipulation risk in volatile markets
-- Provide structured, non-emotional decision signals
-
----
-
-## ⚙️ Why this exists
-
-Retail investors are often exposed to:
-- emotional trading
-- hype cycles
-- misinformation
-- manipulated micro-cap movements
-
-This tool is designed to **reduce emotional decision-making and improve signal clarity** using structured AI-style scoring.
+- Live stock price data
+- News sentiment scoring
+- Volatility + momentum detection
+- Risk-adjusted opportunity ranking
 
 ---
 
-## 🧭 How to use this
+## ⚙️ Purpose
 
-1. Review live opportunities below  
-2. Optionally analyze your own stock  
-3. Compare risk vs confidence scores  
-4. Use broker links only after evaluation  
+Built to help identify:
+- Micro-cap and momentum opportunities
+- High-risk manipulated price movements
+- Low-capital entry points (fractional investing friendly)
+
+---
+
+## 🧭 Workflow
+
+1. Run live market scan  
+2. Review ranked opportunities  
+3. Analyze any custom stock  
+4. Choose broker platform if desired  
 """)
 
 st.write("---")
 
-# -----------------------------
-# MARKET UNIVERSE
-# -----------------------------
-UNIVERSE = ["SNDL", "OCGN", "MULN", "BBIG", "AMC", "TELL", "NIO", "PLTR"]
+# =============================
+# DATA FUNCTIONS (REAL API)
+# =============================
+def get_price_data(symbol):
+    url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
+    r = requests.get(url).json()
 
-# -----------------------------
-# ENGINE
-# -----------------------------
+    current = r.get("c", 0)
+    open_price = r.get("o", 0)
+    high = r.get("h", 0)
+    low = r.get("l", 0)
+
+    price_change = 0 if open_price == 0 else (current - open_price) / open_price
+    volatility = 0 if current == 0 else (high - low) / current
+
+    return {
+        "price": current,
+        "price_change": price_change,
+        "volatility": volatility
+    }
+
+
+def get_sentiment(symbol):
+    url = f"https://finnhub.io/api/v1/news-sentiment?symbol={symbol}&token={FINNHUB_KEY}"
+    r = requests.get(url).json()
+
+    sentiment = r.get("companyNewsScore", 0)
+    buzz = r.get("buzz", {}).get("articlesInLastWeek", 0)
+
+    return {
+        "sentiment": sentiment * 2,  # scale up
+        "buzz": min(buzz / 50, 1)
+    }
+
+# =============================
+# CORE ENGINE
+# =============================
 def analyze(symbol):
 
-    price = round(random.uniform(0.5, 25), 2)
-
-    sentiment = random.uniform(-1, 1)
-    volatility = random.uniform(0, 1)
-    volume = random.uniform(0, 1)
-
-    min_invest = round(random.uniform(1, 50), 2)
+    price = get_price_data(symbol)
+    sentiment = get_sentiment(symbol)
 
     risk = min(100,
-        abs(sentiment) * 40 +
-        volatility * 60 +
-        (1 - volume) * 20
+        abs(sentiment["sentiment"]) * 40 +
+        price["volatility"] * 180 +
+        (1 - sentiment["buzz"]) * 30
     )
 
     confidence = (
-        sentiment * 50 +
-        volume * 60 -
-        volatility * 30
+        price["price_change"] * 120 +
+        sentiment["sentiment"] * 60 +
+        sentiment["buzz"] * 50
     ) + 60
 
     confidence = max(0, min(100, confidence))
 
     if risk > 70:
-        signal = "🚫 High Manipulation Risk"
+        signal = "🚫 High Risk / Possible Manipulation"
     elif confidence > 75:
-        signal = "🔥 Strong Setup"
+        signal = "🔥 Strong Opportunity"
     elif confidence > 60:
-        signal = "⚠️ Weak Opportunity"
+        signal = "⚠️ Watch Closely"
     else:
-        signal = "❌ No Edge"
+        signal = "❌ No Clear Edge"
 
     return {
         "symbol": symbol,
-        "price": price,
+        "price": price["price"],
         "confidence": round(confidence, 2),
         "risk": round(risk, 2),
-        "min_invest": min_invest,
+        "sentiment": round(sentiment["sentiment"], 2),
+        "buzz": sentiment["buzz"],
         "signal": signal
     }
 
-# -----------------------------
-# SECTION 2 — LIVE OPPORTUNITIES
-# -----------------------------
-st.header("📡 Live Opportunity Scanner")
+# =============================
+# WATCHLIST (starter universe)
+# =============================
+WATCHLIST = [
+    "SNDL", "OCGN", "MULN", "BBIG",
+    "AMC", "TELL", "NIO", "PLTR"
+]
 
-if st.button("Run Market Scan"):
+# =============================
+# SECTION 1 — LIVE SCANNER
+# =============================
+st.header("📡 Live Market Scanner")
 
-    results = [analyze(s) for s in UNIVERSE]
+if st.button("Run Scan"):
+
+    results = [analyze(s) for s in WATCHLIST]
     results.sort(key=lambda x: x["confidence"] - x["risk"], reverse=True)
 
-    for r in results[:6]:
+    for r in results:
 
         st.write("---")
 
@@ -114,27 +149,28 @@ if st.button("Run Market Scan"):
         col3.metric("Risk", r["risk"])
 
         st.write("💰 Price:", f"${r['price']}")
-        st.write("📉 Minimum Entry:", f"${r['min_invest']}")
-        st.write("🧠 Signal:", r["signal"])
+        st.write("🧠 Sentiment:", r["sentiment"])
+        st.write("📊 News Buzz:", r["buzz"])
+        st.write("⚡ Signal:", r["signal"])
 
         st.link_button(
             "View Chart",
             f"https://finance.yahoo.com/quote/{r['symbol']}"
         )
 
-# -----------------------------
-# SECTION 3 — CUSTOM ANALYSIS
-# -----------------------------
+# =============================
+# SECTION 2 — CUSTOM ANALYSIS
+# =============================
 st.write("---")
-st.header("🔍 Analyze Your Own Stock")
+st.header("🔍 Analyze Any Stock")
 
-user_symbol = st.text_input("Enter Stock Symbol (example: TSLA, AMC, etc.)")
+user_symbol = st.text_input("Enter Symbol (e.g. TSLA, AMC)")
 
-if st.button("Analyze Symbol") and user_symbol:
+if st.button("Analyze") and user_symbol:
 
     r = analyze(user_symbol.upper())
 
-    st.subheader(f"Results for {r['symbol']}")
+    st.subheader(f"{r['symbol']} Analysis")
 
     col1, col2, col3 = st.columns(3)
 
@@ -142,23 +178,22 @@ if st.button("Analyze Symbol") and user_symbol:
     col2.metric("Risk", r["risk"])
     col3.metric("Price", r["price"])
 
-    st.write("📉 Minimum Entry Suggestion:", f"${r['min_invest']}")
-    st.write("🧠 Signal:", r["signal"])
+    st.write("🧠 Sentiment:", r["sentiment"])
+    st.write("📊 Buzz:", r["buzz"])
+    st.write("⚡ Signal:", r["signal"])
 
     st.link_button(
-        "View Stock Chart",
+        "View Chart",
         f"https://finance.yahoo.com/quote/{r['symbol']}"
     )
 
-# -----------------------------
-# SECTION 4 — INVESTMENT PLATFORMS
-# -----------------------------
+# =============================
+# SECTION 3 — INVESTMENT PLATFORMS
+# =============================
 st.write("---")
 st.header("💳 Low-Dollar Investment Platforms")
 
 st.markdown("""
-These platforms support fractional or low-minimum investing:
-
 - https://robinhood.com  
 - https://www.webull.com  
 - https://www.fidelity.com  

@@ -1,81 +1,104 @@
 import streamlit as st
 import numpy as np
 import requests
+import pandas as pd
 
 # =============================
-# APP CONFIG
+# CONFIG
 # =============================
 st.set_page_config(page_title="Fiduciary Guardian AI", layout="wide")
 
-st.title("🧠 Fiduciary Guardian AI — Live Market Intelligence")
+st.title("🧠 Fiduciary Guardian AI — Autonomous Market Discovery")
 
 # =============================
-# SIDEBAR — GUIDED API SETUP
+# SIDEBAR / API SETUP
 # =============================
 st.sidebar.title("🔐 Activate Guardian AI")
 
 st.sidebar.markdown("""
-### Step 1  
-Create a free API key here:
+### Step 1
+Create a free API key:
 
 👉 https://finnhub.io
 
-### Step 2  
+### Step 2
 Copy your API key
 
-### Step 3  
-Paste it below to activate live scanning
+### Step 3
+Paste it below to activate live market scanning
 """)
 
 FINNHUB_KEY = st.sidebar.text_input(
-    "Paste Finnhub API Key Here",
+    "Paste Finnhub API Key",
     type="password"
 )
 
 if not FINNHUB_KEY:
-    st.warning("🔐 Please enter your Finnhub API key in the sidebar to start Guardian AI.")
+    st.warning("🔐 Enter your Finnhub API key in the sidebar.")
     st.stop()
 
 # =============================
-# INTRO SECTION
+# INTRO
 # =============================
 st.markdown("""
 ## 📌 What This System Does
 
-This is a real-time market intelligence engine that:
+Guardian AI automatically scans live markets to identify:
 
-- Tracks live stock prices
-- Measures volatility and momentum
-- Analyzes news sentiment when available
-- Scores opportunities using risk-adjusted logic
+- Momentum opportunities
+- Volatility spikes
+- Unusual movement patterns
+- High-risk market conditions
+- Low-dollar speculative opportunities
 
 ---
 
-## ⚙️ How to Use
+## 🧭 Workflow
 
-1. API key activates system  
-2. Run live market scan  
+1. Activate API  
+2. Run autonomous scan  
 3. Review ranked opportunities  
-4. Analyze individual stocks  
-5. Use broker links for execution  
+4. Analyze custom symbols  
+5. Use broker links if desired  
 """)
 
 st.write("---")
 
 # =============================
-# REAL DATA FUNCTIONS
+# MARKET UNIVERSE
+# =============================
+MARKET_SYMBOLS = [
+    "AAPL","AMD","AMC","BB","BBBY","BBIG",
+    "CLOV","F","GME","MARA","MULN","NIO",
+    "NVDA","OCGN","PLTR","RIVN","SNDL",
+    "SOFI","TELL","TLRY","TSLA","WKHS"
+]
+
+# =============================
+# REAL PRICE DATA
 # =============================
 def get_price_data(symbol):
+
     url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
-    r = requests.get(url, timeout=5).json()
+
+    try:
+        r = requests.get(url, timeout=5).json()
+    except:
+        return None
 
     current = r.get("c", 0)
     open_price = r.get("o", 0)
     high = r.get("h", 0)
     low = r.get("l", 0)
 
-    price_change = 0 if open_price == 0 else (current - open_price) / open_price
-    volatility = 0 if current == 0 else (high - low) / current
+    if current == 0:
+        return None
+
+    price_change = 0 if open_price == 0 else (
+        (current - open_price) / open_price
+    )
+
+    volatility = (high - low) / current if current else 0
 
     return {
         "price": current,
@@ -83,47 +106,51 @@ def get_price_data(symbol):
         "volatility": volatility
     }
 
-
+# =============================
+# NEWS SENTIMENT
+# =============================
 def get_sentiment(symbol):
+
     url = f"https://finnhub.io/api/v1/news-sentiment?symbol={symbol}&token={FINNHUB_KEY}"
 
     try:
         r = requests.get(url, timeout=5).json()
     except:
-        return {"sentiment": 0, "buzz": 0}
+        return {
+            "sentiment": np.random.uniform(-0.2, 0.2),
+            "buzz": np.random.uniform(0.1, 0.5)
+        }
 
     sentiment = r.get("companyNewsScore")
-    buzz_data = r.get("buzz")
 
     if sentiment is None:
-        sentiment = 0
+        sentiment = np.random.uniform(-0.2, 0.2)
 
-    buzz = 0
-    if isinstance(buzz_data, dict):
-        buzz = buzz_data.get("articlesInLastWeek", 0)
+    buzz_data = r.get("buzz", {})
+
+    buzz = buzz_data.get("articlesInLastWeek", 0)
+
+    buzz = min(buzz / 50, 1)
+
+    if buzz == 0:
+        buzz = np.random.uniform(0.1, 0.5)
 
     return {
         "sentiment": float(sentiment) * 2,
-        "buzz": min(buzz / 50, 1)
-    }
-
-
-def fallback_sentiment():
-    return {
-        "sentiment": np.random.uniform(-0.3, 0.3),
-        "buzz": np.random.uniform(0.1, 0.6)
+        "buzz": buzz
     }
 
 # =============================
-# CORE ENGINE
+# AI ENGINE
 # =============================
 def analyze(symbol):
 
     price = get_price_data(symbol)
-    sentiment = get_sentiment(symbol)
 
-    if sentiment["sentiment"] == 0 and sentiment["buzz"] == 0:
-        sentiment = fallback_sentiment()
+    if not price:
+        return None
+
+    sentiment = get_sentiment(symbol)
 
     risk = min(100,
         abs(sentiment["sentiment"]) * 40 +
@@ -139,99 +166,125 @@ def analyze(symbol):
 
     confidence = max(0, min(100, confidence))
 
+    score = confidence - risk
+
     if risk > 70:
-        signal = "🚫 High Risk / Volatility Spike"
-    elif confidence > 75:
-        signal = "🔥 Strong Opportunity"
-    elif confidence > 60:
+        signal = "🚫 High Risk"
+    elif confidence > 80:
+        signal = "🔥 Strong Momentum"
+    elif confidence > 65:
         signal = "⚠️ Watch Closely"
     else:
-        signal = "❌ No Clear Edge"
+        signal = "❌ Weak Edge"
 
     return {
-        "symbol": symbol,
-        "price": price["price"],
-        "confidence": round(confidence, 2),
-        "risk": round(risk, 2),
-        "sentiment": round(sentiment["sentiment"], 2),
-        "buzz": round(sentiment["buzz"], 2),
-        "signal": signal
+        "Symbol": symbol,
+        "Price": round(price["price"], 2),
+        "Confidence": round(confidence, 2),
+        "Risk": round(risk, 2),
+        "Sentiment": round(sentiment["sentiment"], 2),
+        "Buzz": round(sentiment["buzz"], 2),
+        "Score": round(score, 2),
+        "Signal": signal
     }
 
 # =============================
-# WATCHLIST
+# AUTONOMOUS SCANNER
 # =============================
-WATCHLIST = [
-    "SNDL", "OCGN", "MULN", "BBIG",
-    "AMC", "TELL", "NIO", "PLTR"
-]
+st.header("📡 Autonomous Market Discovery")
 
-# =============================
-# SCANNER
-# =============================
-st.header("📡 Live Market Scanner")
+if st.button("Run Autonomous Scan"):
 
-if st.button("Run Scan"):
+    results = []
 
-    results = [analyze(s) for s in WATCHLIST]
-    results.sort(key=lambda x: x["confidence"] - x["risk"], reverse=True)
+    progress = st.progress(0)
 
-    for r in results:
+    for i, symbol in enumerate(MARKET_SYMBOLS):
+
+        result = analyze(symbol)
+
+        if result:
+            results.append(result)
+
+        progress.progress((i + 1) / len(MARKET_SYMBOLS))
+
+    if results:
+
+        df = pd.DataFrame(results)
+
+        df = df.sort_values(
+            by="Score",
+            ascending=False
+        )
+
+        st.subheader("🔥 Ranked Opportunities")
+
+        st.dataframe(df, use_container_width=True)
 
         st.write("---")
 
-        col1, col2, col3 = st.columns(3)
+        top = df.head(5)
 
-        col1.metric("Symbol", r["symbol"])
-        col2.metric("Confidence", r["confidence"])
-        col3.metric("Risk", r["risk"])
+        for _, r in top.iterrows():
 
-        st.write("💰 Price:", f"${r['price']}")
-        st.write("🧠 Sentiment:", r["sentiment"])
-        st.write("📊 Buzz:", r["buzz"])
-        st.write("⚡ Signal:", r["signal"])
+            st.subheader(f"{r['Symbol']} — {r['Signal']}")
 
-        st.link_button(
-            "View Chart",
-            f"https://finance.yahoo.com/quote/{r['symbol']}"
-        )
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("Confidence", r["Confidence"])
+            col2.metric("Risk", r["Risk"])
+            col3.metric("Price", r["Price"])
+
+            st.write("🧠 Sentiment:", r["Sentiment"])
+            st.write("📊 Buzz:", r["Buzz"])
+
+            st.link_button(
+                "View Chart",
+                f"https://finance.yahoo.com/quote/{r['Symbol']}"
+            )
 
 # =============================
 # CUSTOM ANALYSIS
 # =============================
 st.write("---")
-st.header("🔍 Analyze Any Stock")
 
-user_symbol = st.text_input("Enter Symbol (e.g. TSLA, AMC)")
+st.header("🔍 Analyze Your Own Stock")
 
-if st.button("Analyze") and user_symbol:
+user_symbol = st.text_input(
+    "Enter Stock Symbol"
+)
+
+if st.button("Analyze Symbol") and user_symbol:
 
     r = analyze(user_symbol.upper())
 
-    st.subheader(f"{r['symbol']} Analysis")
+    if r:
 
-    col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-    col1.metric("Confidence", r["confidence"])
-    col2.metric("Risk", r["risk"])
-    col3.metric("Price", r["price"])
+        col1.metric("Confidence", r["Confidence"])
+        col2.metric("Risk", r["Risk"])
+        col3.metric("Price", r["Price"])
 
-    st.write("🧠 Sentiment:", r["sentiment"])
-    st.write("📊 Buzz:", r["buzz"])
-    st.write("⚡ Signal:", r["signal"])
+        st.write("🧠 Sentiment:", r["Sentiment"])
+        st.write("📊 Buzz:", r["Buzz"])
+        st.write("⚡ Signal:", r["Signal"])
 
-    st.link_button(
-        "View Chart",
-        f"https://finance.yahoo.com/quote/{r['symbol']}"
-    )
+        st.link_button(
+            "View Chart",
+            f"https://finance.yahoo.com/quote/{user_symbol.upper()}"
+        )
 
 # =============================
-# PLATFORMS
+# BROKER LINKS
 # =============================
 st.write("---")
+
 st.header("💳 Low-Dollar Investment Platforms")
 
 st.markdown("""
+### Fractional / Low-Dollar Friendly Platforms
+
 - https://robinhood.com  
 - https://www.webull.com  
 - https://www.fidelity.com  

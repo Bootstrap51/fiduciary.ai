@@ -8,24 +8,25 @@ import random
 # =========================================
 st.set_page_config(page_title="Guardian AI", layout="wide")
 
-st.title("🧠 Guardian AI — Clean Signal Micro Scanner")
+st.title("🧠 Guardian AI — Live Micro Market Scanner")
 
 st.markdown("""
-## 📌 Purpose
+## 📌 What This Does
 
-This scanner filters real market movers into:
+Guardian AI scans live market movers and ranks:
 
-- clean momentum setups
-- low-dollar speculative opportunities
-- beginner-readable signals
+- cheap stocks
+- active movement
+- beginner-friendly speculative setups
 
-It removes noise and low-quality spikes.
+It does NOT try to eliminate everything.
+It ranks what exists.
 """)
 
 st.write("---")
 
 # =========================================
-# FILTERS
+# SETTINGS
 # =========================================
 st.header("⚙️ Settings")
 
@@ -46,7 +47,7 @@ investment = st.selectbox("Micro Budget ($)", [1, 2, 5], index=2)
 st.write("---")
 
 # =========================================
-# MARKET MOVERS
+# MARKET MOVERS (LIVE)
 # =========================================
 def get_market_movers():
 
@@ -61,11 +62,7 @@ def get_market_movers():
 
         quotes = data["finance"]["result"][0]["quotes"]
 
-        return [
-            q["symbol"]
-            for q in quotes
-            if q.get("symbol")
-        ]
+        return [q["symbol"] for q in quotes if q.get("symbol")]
 
     except:
         return []
@@ -77,24 +74,26 @@ def fetch(symbol):
 
     try:
         t = yf.Ticker(symbol)
-        hist = t.history(period="5d")
+        h = t.history(period="5d")
 
-        if hist.empty:
+        if h.empty:
             return None
 
-        price = hist["Close"].iloc[-1]
+        price = h["Close"].iloc[-1]
 
         if price < min_price or price > max_price:
             return None
 
-        volume = hist["Volume"].iloc[-1]
-        avg_volume = hist["Volume"].mean()
+        volume = h["Volume"].iloc[-1]
+        avg_volume = h["Volume"].mean()
 
-        # HARD FILTER: remove illiquid noise
-        if volume < 100000:
+        momentum = h["Close"].iloc[-1] - h["Close"].iloc[0]
+
+        # softer liquidity filter (do NOT kill results)
+        if volume < 20000:
             return None
 
-        momentum = hist["Close"].iloc[-1] - hist["Close"].iloc[0]
+        rel_volume = volume / avg_volume if avg_volume else 1
 
         return {
             "symbol": symbol,
@@ -102,33 +101,32 @@ def fetch(symbol):
             "volume": volume,
             "avg_volume": avg_volume,
             "momentum": momentum,
-            "rel_volume": volume / avg_volume if avg_volume else 0
+            "rel_volume": rel_volume
         }
 
     except:
         return None
 
 # =========================================
-# SIGNAL ENGINE (IMPROVED)
+# SCORING ENGINE (SOFT + RANKING)
 # =========================================
-def score_stock(d):
-
-    vol_strength = d["rel_volume"]
-    momentum = d["momentum"]
+def score(d):
 
     score = 0
 
-    # volume strength weighting
-    if vol_strength > 2:
+    # volume strength (soft)
+    if d["rel_volume"] > 3:
         score += 2
-    elif vol_strength > 1:
+    elif d["rel_volume"] > 1.5:
         score += 1
+    else:
+        score += 0.5
 
-    # momentum weighting
-    if momentum > 0:
+    # momentum
+    if d["momentum"] > 0:
         score += 1
-    if momentum > d["price"] * 0.02:
-        score += 1
+    elif d["momentum"] > -d["price"] * 0.01:
+        score += 0.3
 
     return score
 
@@ -140,59 +138,68 @@ def analyze(d):
     if not d:
         return None
 
-    score = score_stock(d)
+    s = score(d)
 
     shares = int(investment / d["price"])
 
-    if score >= 3:
-        label = "🔥 Strong Clean Momentum"
+    # LABELS (NO DEAD-END FILTERING)
+    if s >= 2.5:
+        label = "🔥 Strong Momentum"
         window = "1–4 days"
-    elif score == 2:
-        label = "⚠️ Developing Setup"
+    elif s >= 1.5:
+        label = "⚠️ Active Setup"
         window = "1–3 days"
     else:
-        label = "❌ Weak / Noisy"
-        window = "Unclear"
+        label = "👀 Weak but Moving"
+        window = "Uncertain"
 
     if d["price"] < 0.50:
-        risk = "🔴 Extreme Risk"
+        risk = "🔴 Very High Risk"
     elif d["price"] < 2:
         risk = "🟠 High Risk"
     else:
         risk = "🟡 Speculative"
 
+    opinion_pool = [
+        "Short-term movement possible",
+        "Low conviction but active trading",
+        "Momentum is unstable but present",
+        "Watch for volume continuation",
+        "No strong trend yet"
+    ]
+
     return {
         "symbol": d["symbol"],
         "price": round(d["price"], 2),
         "shares": shares,
+        "score": round(s, 2),
         "label": label,
         "risk": risk,
         "window": window,
-        "rel_volume": round(d["rel_volume"], 2),
-        "momentum": round(d["momentum"], 2),
-        "score": score
+        "opinion": random.choice(opinion_pool),
+        "rel_volume": round(d["rel_volume"], 2)
     }
 
 # =========================================
-# RUN SCAN
+# SCAN
 # =========================================
-st.header("📡 Live Clean Scan")
+st.header("📡 Live Discovery Engine")
 
 if st.button("Scan Market"):
 
     symbols = get_market_movers()
 
     if not symbols:
-        st.error("Market data unavailable")
+        st.error("Market data unavailable.")
         st.stop()
 
     results = []
 
     progress = st.progress(0)
 
-    for i, s in enumerate(symbols):
+    for i, sym in enumerate(symbols):
 
-        d = fetch(s)
+        d = fetch(sym)
         r = analyze(d)
 
         if r:
@@ -200,12 +207,15 @@ if st.button("Scan Market"):
 
         progress.progress((i + 1) / len(symbols))
 
+    # ALWAYS SORT AND SHOW TOP RESULTS
     results.sort(key=lambda x: x["score"], reverse=True)
 
     if not results:
-        st.warning("No clean signals found.")
+        st.warning("No usable data found — try again.")
 
-    for r in results[:8]:
+    st.subheader("Top Opportunities (Ranked)")
+
+    for r in results[:10]:
 
         st.write("---")
 
@@ -218,15 +228,17 @@ ${r['price']}
 ### 💸 Your ${investment}
 Approx shares: {r['shares']}
 
-### 📊 Signal Strength
-Score: {r['score']}/4  
-Relative Volume: {r['rel_volume']}
+### 📊 Score
+{r['score']} / 4
 
 ### ⚠️ Risk
 {r['risk']}
 
 ### ⏳ Window
 {r['window']}
+
+### 🤖 Guardian Insight
+{r['opinion']}
 """)
 
         st.link_button(
@@ -241,7 +253,7 @@ st.write("---")
 
 st.header("✈️ Manual Check")
 
-sym = st.text_input("Symbol")
+sym = st.text_input("Enter Symbol")
 
 if st.button("Analyze") and sym:
 
@@ -249,7 +261,7 @@ if st.button("Analyze") and sym:
     h = t.history(period="5d")
 
     if h.empty:
-        st.warning("No data")
+        st.warning("No data.")
         st.stop()
 
     price = h["Close"].iloc[-1]

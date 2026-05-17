@@ -10,13 +10,14 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🧠 Guardian AI — Penny Stock Discovery Engine")
+st.title("🧠 Guardian AI — Ranked Penny Stock Discovery")
 
 st.markdown("""
-Find active low-cost speculative stocks using:
-- live pricing
+Guardian AI scans low-cost speculative stocks and ranks them by:
+
 - momentum
-- trading activity
+- activity
+- relative trading volume
 
 Designed for beginner micro-investors.
 """)
@@ -58,30 +59,26 @@ investment = st.selectbox(
 st.write("---")
 
 # =========================================
-# LARGE SYMBOL POOL
+# SYMBOL POOL
 # =========================================
 SYMBOLS = [
 
-    # SUB $1
     "SNDL","MULN","TELL","ZOM","HUSA",
     "TOPS","SOS","XELA","CEI","BIOR",
     "IDEX","CTRM","COSM","GNUS","VERB",
 
-    # $1-$3
     "WKHS","CLOV","OCGN","BNGO","WISH",
     "AVTX","HEPS","RIDE","GSAT","ATER",
 
-    # $3-$5
     "OPEN","SOUN","JOBY","PLUG","NVAX",
     "BB","TLRY","FUBO","PENN","RIOT",
 
-    # ACTIVE SMALL CAPS
     "IONQ","ACHR","ASTS","RKLB","DNA",
     "LCID","NIO","SOFI","PLTR","HOOD"
 ]
 
 # =========================================
-# FETCH
+# FETCH STOCK DATA
 # =========================================
 def fetch(symbol):
 
@@ -94,13 +91,14 @@ def fetch(symbol):
         if h.empty:
             return None
 
-        price = h["Close"].iloc[-1]
+        price = float(h["Close"].iloc[-1])
 
         if price < min_price or price > max_price:
             return None
 
-        volume = h["Volume"].iloc[-1]
-        avg_volume = h["Volume"].mean()
+        volume = float(h["Volume"].iloc[-1])
+
+        avg_volume = float(h["Volume"].mean())
 
         momentum = (
             h["Close"].iloc[-1]
@@ -125,7 +123,7 @@ def fetch(symbol):
         return None
 
 # =========================================
-# SCORE
+# SCORE ENGINE
 # =========================================
 def analyze(d):
 
@@ -134,46 +132,46 @@ def analyze(d):
 
     score = 0
 
+    # PRICE ACTIVITY
+    if d["price"] < 1:
+        score += 1
+
     # MOMENTUM
     if d["momentum"] > 0:
         score += 1
 
     # RELATIVE VOLUME
-    if d["rel_volume"] > 1.2:
-        score += 1
-
-    # PRICE ACTIVITY
-    if d["price"] < 1:
+    if d["rel_volume"] > 1:
         score += 1
 
     shares = int(investment / d["price"])
 
     # LABELS
-    if score >= 3:
-        label = "🔥 Strong Activity"
+    if score == 3:
+        label = "🔥 Strong Momentum"
 
-    elif score >= 2:
-        label = "⚠️ Active Setup"
+    elif score == 2:
+        label = "⚠️ Active"
 
     else:
-        label = "👀 Weak Activity"
+        label = "👀 Watch"
 
     # RISK
     if d["price"] < 0.50:
-        risk = "🔴 Extreme Risk"
+        risk = "🔴 Extreme"
 
     elif d["price"] < 2:
-        risk = "🟠 High Risk"
+        risk = "🟠 High"
 
     else:
         risk = "🟡 Speculative"
 
     opinions = [
+        "Retail activity appears elevated",
         "Momentum may be building",
-        "Speculative activity detected",
-        "Trading activity elevated",
-        "Watch short-term movement",
-        "Possible retail interest"
+        "Watching for continuation",
+        "Speculative activity present",
+        "Possible short-term movement"
     ]
 
     return {
@@ -181,15 +179,15 @@ def analyze(d):
         "price": d["price"],
         "shares": shares,
         "score": score,
-        "label": label,
         "risk": risk,
+        "label": label,
         "opinion": random.choice(opinions)
     }
 
 # =========================================
 # SCAN
 # =========================================
-st.header("📡 Discovery Engine")
+st.header("📡 Ranked Discovery Engine")
 
 if st.button("Scan Penny Stocks"):
 
@@ -210,6 +208,7 @@ if st.button("Scan Penny Stocks"):
             (i + 1) / len(SYMBOLS)
         )
 
+    # SORT BEST FIRST
     results.sort(
         key=lambda x: x["score"],
         reverse=True
@@ -218,12 +217,14 @@ if st.button("Scan Penny Stocks"):
     if not results:
 
         st.warning(
-            "No matching opportunities found."
+            "No matching stocks found."
         )
 
     else:
 
-        st.subheader("Top Ranked Opportunities")
+        st.subheader(
+            "Top Penny Stock Opportunities"
+        )
 
         for r in results[:10]:
 
@@ -238,14 +239,14 @@ if st.button("Scan Penny Stocks"):
 ${r['price']}
 
 ### 💸 Your ${investment}
-Approx shares:
+Approximate shares:
 {r['shares']}
-
-### ⚠️ Risk
-{r['risk']}
 
 ### 📊 Activity Score
 {r['score']} / 3
+
+### ⚠️ Risk
+{r['risk']}
 
 ### 🤖 Guardian View
 {r['opinion']}
@@ -263,7 +264,9 @@ st.write("---")
 
 st.header("✈️ Manual Stock Check")
 
-manual = st.text_input("Enter Symbol")
+manual = st.text_input(
+    "Enter Symbol"
+)
 
 if st.button("Analyze Symbol") and manual:
 
@@ -289,7 +292,7 @@ if st.button("Analyze Symbol") and manual:
     else:
 
         st.warning(
-            "No usable data for this symbol."
+            "No usable data for this stock."
         )
 
 # =========================================

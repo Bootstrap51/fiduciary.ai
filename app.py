@@ -1,16 +1,18 @@
 import streamlit as st
+import pandas as pd
 import yfinance as yf
+import requests
 import random
 
 # =========================================
-# PAGE SETUP
+# PAGE CONFIG
 # =========================================
 st.set_page_config(
     page_title="Guardian AI",
     layout="wide"
 )
 
-st.title("🧠 Guardian AI — Penny Stock Discovery")
+st.title("🧠 Guardian AI — Real Penny Stock Discovery")
 
 # =========================================
 # INTRO
@@ -18,31 +20,29 @@ st.title("🧠 Guardian AI — Penny Stock Discovery")
 st.markdown("""
 ## 📌 What Guardian AI Does
 
-Guardian AI helps beginner and micro-investors discover:
+Guardian AI scans live markets looking for:
 
 - Cheap penny stocks
 - Active low-cost opportunities
-- Beginner-friendly speculative plays
-- Simple momentum-based setups
+- Increased trading activity
+- Beginner-friendly speculative setups
 
 ---
 
 ## ⚠️ Important
 
-Penny stocks are highly speculative.
+Penny stocks are extremely risky and volatile.
 
-This tool does NOT guarantee profits.
-
-Guardian AI is designed to:
-- simplify research
-- reduce confusion
-- help beginners learn
+This tool is designed to:
+- simplify discovery
+- reduce information overload
+- help beginners experiment carefully
 """)
 
 st.write("---")
 
 # =========================================
-# PRICE RANGE FILTER
+# FILTERS
 # =========================================
 st.header("⚙️ Discovery Settings")
 
@@ -55,7 +55,6 @@ price_range = st.selectbox(
     ]
 )
 
-# RANGE LOGIC
 if price_range == "$0.01 - $1.00":
     min_price = 0.01
     max_price = 1.00
@@ -68,9 +67,6 @@ else:
     min_price = 3.00
     max_price = 5.00
 
-# =========================================
-# INVESTMENT AMOUNT
-# =========================================
 investment_amount = st.selectbox(
     "How Much Are You Experimenting With?",
     [1, 2, 5],
@@ -80,37 +76,45 @@ investment_amount = st.selectbox(
 st.write("---")
 
 # =========================================
-# PENNY STOCK UNIVERSE
+# GET LIVE MARKET MOVERS
 # =========================================
-PENNY_STOCKS = [
-    "SNDL",
-    "MULN",
-    "OCGN",
-    "TELL",
-    "WKHS",
-    "CLOV",
-    "ATER",
-    "CEI",
-    "IDEX",
-    "XELA",
-    "GNUS",
-    "CTRM",
-    "HUSA",
-    "TOPS",
-    "ZOM",
-    "SOS",
-    "BIOR",
-    "COSM",
-    "NAK",
-    "JOBY",
-    "RIDE",
-    "GSAT",
-    "BNGO",
-    "VERB",
-    "WISH",
-    "HEPS",
-    "AVTX"
-]
+def get_market_movers():
+
+    url = "https://finance.yahoo.com/markets/stocks/gainers/"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    try:
+
+        tables = pd.read_html(
+            requests.get(
+                url,
+                headers=headers,
+                timeout=10
+            ).text
+        )
+
+        if len(tables) == 0:
+            return []
+
+        df = tables[0]
+
+        symbols = []
+
+        for symbol in df["Symbol"]:
+
+            if isinstance(symbol, str):
+
+                # remove weird symbols
+                if "." not in symbol:
+                    symbols.append(symbol)
+
+        return symbols[:50]
+
+    except:
+        return []
 
 # =========================================
 # GET STOCK DATA
@@ -131,7 +135,7 @@ def get_stock_data(symbol):
             2
         )
 
-        # FILTER PRICE RANGE
+        # PRICE FILTER
         if current_price < min_price:
             return None
 
@@ -141,6 +145,10 @@ def get_stock_data(symbol):
         volume_today = hist["Volume"].iloc[-1]
 
         avg_volume = hist["Volume"].mean()
+
+        # remove dead stocks
+        if volume_today < 50000:
+            return None
 
         momentum = (
             hist["Close"].iloc[-1]
@@ -160,19 +168,17 @@ def get_stock_data(symbol):
         return None
 
 # =========================================
-# ANALYZE STOCK
+# ANALYSIS ENGINE
 # =========================================
 def analyze_stock(data):
 
     if not data:
         return None
 
-    # SHARES
     shares = int(
         investment_amount / data["price"]
     )
 
-    # ACTIVITY
     volume_spike = (
         data["volume_today"]
         >
@@ -192,7 +198,7 @@ def analyze_stock(data):
     if momentum_up:
         score += 1
 
-    # SETUP LABEL
+    # LABELS
     if score == 2:
         setup = "🔥 Active Momentum"
 
@@ -212,7 +218,7 @@ def analyze_stock(data):
     else:
         risk = "🟡 Speculative"
 
-    # MOMENTUM WINDOW
+    # WINDOW
     if score == 2:
         window = "1–5 days"
 
@@ -222,26 +228,47 @@ def analyze_stock(data):
     else:
         window = "Weak momentum"
 
+    # HUMAN LANGUAGE
+    reasons = []
+
+    if volume_spike:
+        reasons.append(
+            "Trading activity increased today"
+        )
+
+    if momentum_up:
+        reasons.append(
+            "Price momentum is moving upward"
+        )
+
+    if not reasons:
+        reasons.append(
+            "Limited activity currently"
+        )
+
     # OPINION
     if score == 2:
+
         opinion = random.choice([
-            "Momentum appears active",
-            "Retail activity increasing",
-            "Volume and price movement look strong"
+            "Interesting speculative momentum setup",
+            "Momentum appears stronger than normal",
+            "Retail trading activity is elevated"
         ])
 
     elif score == 1:
+
         opinion = random.choice([
-            "Moderate speculative activity",
             "Worth watching carefully",
-            "Some momentum detected"
+            "Moderate speculative activity detected",
+            "Some momentum appears active"
         ])
 
     else:
+
         opinion = random.choice([
-            "Limited current activity",
-            "Weak setup right now",
-            "Low momentum currently"
+            "Weak setup currently",
+            "Low momentum detected",
+            "Not much activity right now"
         ])
 
     return {
@@ -252,86 +279,73 @@ def analyze_stock(data):
         "risk": risk,
         "window": window,
         "opinion": opinion,
-        "volume_spike": volume_spike,
-        "momentum_up": momentum_up,
+        "reasons": reasons,
         "score": score
     }
 
 # =========================================
 # DISCOVERY MODE
 # =========================================
-st.header("📡 Guardian Discovery")
+st.header("📡 Live Market Discovery")
 
-if st.button("Find Penny Stock Opportunities"):
+if st.button("Scan Live Penny Stocks"):
 
-    opportunities = []
+    with st.spinner("Scanning live markets..."):
 
-    progress = st.progress(0)
+        symbols = get_market_movers()
 
-    for i, symbol in enumerate(PENNY_STOCKS):
+        if not symbols:
 
-        stock_data = get_stock_data(symbol)
+            st.error(
+                "Unable to retrieve live market movers."
+            )
 
-        result = analyze_stock(stock_data)
+        else:
 
-        if result:
-            opportunities.append(result)
+            opportunities = []
 
-        progress.progress(
-            (i + 1) / len(PENNY_STOCKS)
-        )
+            progress = st.progress(0)
 
-    # SORT BEST FIRST
-    opportunities.sort(
-        key=lambda x: x["score"],
-        reverse=True
-    )
+            for i, symbol in enumerate(symbols):
 
-    if not opportunities:
-        st.warning(
-            "No active penny stock opportunities found."
-        )
+                stock_data = get_stock_data(symbol)
 
-    # DISPLAY RESULTS
-    for stock in opportunities[:10]:
+                result = analyze_stock(stock_data)
 
-        st.write("---")
+                if result:
+                    opportunities.append(result)
 
-        st.subheader(
-            f"{stock['symbol']} — {stock['setup']}"
-        )
+                progress.progress(
+                    (i + 1) / len(symbols)
+                )
 
-        st.markdown(f"""
-### 💵 Stock Price
+            opportunities.sort(
+                key=lambda x: x["score"],
+                reverse=True
+            )
+
+            if not opportunities:
+
+                st.warning(
+                    "No active penny stock opportunities found in this price range."
+                )
+
+            for stock in opportunities[:10]:
+
+                st.write("---")
+
+                st.subheader(
+                    f"{stock['symbol']} — {stock['setup']}"
+                )
+
+                st.markdown(f"""
+### 💵 Price
 ${stock['price']} per share
 
 ### 💸 Your ${investment_amount}
 Approximate shares:
 {stock['shares']}
 
-### 📈 Why Guardian Flagged It
-""")
-
-        if stock["volume_spike"]:
-            st.write(
-                "✔ Trading volume is increasing"
-            )
-
-        if stock["momentum_up"]:
-            st.write(
-                "✔ Price momentum is moving upward"
-            )
-
-        if (
-            not stock["volume_spike"]
-            and
-            not stock["momentum_up"]
-        ):
-            st.write(
-                "• Limited activity currently"
-            )
-
-        st.markdown(f"""
 ### ⚠️ Risk
 {stock['risk']}
 
@@ -342,10 +356,17 @@ Approximate shares:
 {stock['opinion']}
 """)
 
-        st.link_button(
-            f"View {stock['symbol']} Chart",
-            f"https://finance.yahoo.com/quote/{stock['symbol']}"
-        )
+                st.markdown(
+                    "### 📈 Why Guardian Flagged It"
+                )
+
+                for reason in stock["reasons"]:
+                    st.write(f"✔ {reason}")
+
+                st.link_button(
+                    f"View {stock['symbol']} Chart",
+                    f"https://finance.yahoo.com/quote/{stock['symbol']}"
+                )
 
 # =========================================
 # CUSTOM STOCK CHECK
@@ -377,7 +398,7 @@ if st.button("Analyze Stock"):
             )
 
             st.markdown(f"""
-### 💵 Stock Price
+### 💵 Price
 ${result['price']} per share
 
 ### 💸 Your ${investment_amount}
@@ -394,6 +415,13 @@ Approximate shares:
 {result['opinion']}
 """)
 
+            st.markdown(
+                "### 📈 Why Guardian Flagged It"
+            )
+
+            for reason in result["reasons"]:
+                st.write(f"✔ {reason}")
+
             st.link_button(
                 "View Stock Chart",
                 f"https://finance.yahoo.com/quote/{custom_symbol.upper()}"
@@ -402,7 +430,7 @@ Approximate shares:
         else:
 
             st.warning(
-                "Stock unavailable or outside selected price range."
+                "Stock unavailable, inactive, or outside selected price range."
             )
 
 # =========================================
@@ -410,7 +438,7 @@ Approximate shares:
 # =========================================
 st.write("---")
 
-st.header("💳 Beginner Investment Platforms")
+st.header("💳 Beginner-Friendly Investment Platforms")
 
 st.markdown("""
 - https://robinhood.com  

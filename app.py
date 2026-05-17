@@ -262,4 +262,159 @@ def analyze_stock(data):
 # =========================================
 st.header("📡 Guardian Discovery")
 
-if st.button("Find Penny Stock
+if st.button("Find Penny Stock Opportunities"):
+
+    opportunities = []
+
+    progress = st.progress(0)
+
+    for i, symbol in enumerate(PENNY_STOCKS):
+
+        stock_data = get_stock_data(symbol)
+
+        result = analyze_stock(stock_data)
+
+        if result:
+            opportunities.append(result)
+
+        progress.progress(
+            (i + 1) / len(PENNY_STOCKS)
+        )
+
+    # SORT BEST FIRST
+    opportunities.sort(
+        key=lambda x: x["score"],
+        reverse=True
+    )
+
+    if not opportunities:
+        st.warning(
+            "No active penny stock opportunities found."
+        )
+
+    # DISPLAY RESULTS
+    for stock in opportunities[:10]:
+
+        st.write("---")
+
+        st.subheader(
+            f"{stock['symbol']} — {stock['setup']}"
+        )
+
+        st.markdown(f"""
+### 💵 Stock Price
+${stock['price']} per share
+
+### 💸 Your ${investment_amount}
+Approximate shares:
+{stock['shares']}
+
+### 📈 Why Guardian Flagged It
+""")
+
+        if stock["volume_spike"]:
+            st.write(
+                "✔ Trading volume is increasing"
+            )
+
+        if stock["momentum_up"]:
+            st.write(
+                "✔ Price momentum is moving upward"
+            )
+
+        if (
+            not stock["volume_spike"]
+            and
+            not stock["momentum_up"]
+        ):
+            st.write(
+                "• Limited activity currently"
+            )
+
+        st.markdown(f"""
+### ⚠️ Risk
+{stock['risk']}
+
+### ⏳ Momentum Window
+{stock['window']}
+
+### 🤖 Guardian Opinion
+{stock['opinion']}
+""")
+
+        st.link_button(
+            f"View {stock['symbol']} Chart",
+            f"https://finance.yahoo.com/quote/{stock['symbol']}"
+        )
+
+# =========================================
+# CUSTOM STOCK CHECK
+# =========================================
+st.write("---")
+
+st.header("✈️ Check Your Own Stock")
+
+custom_symbol = st.text_input(
+    "Enter Stock Symbol"
+)
+
+if st.button("Analyze Stock"):
+
+    if custom_symbol:
+
+        stock_data = get_stock_data(
+            custom_symbol.upper()
+        )
+
+        result = analyze_stock(stock_data)
+
+        if result:
+
+            st.write("---")
+
+            st.subheader(
+                f"{result['symbol']} — {result['setup']}"
+            )
+
+            st.markdown(f"""
+### 💵 Stock Price
+${result['price']} per share
+
+### 💸 Your ${investment_amount}
+Approximate shares:
+{result['shares']}
+
+### ⚠️ Risk
+{result['risk']}
+
+### ⏳ Momentum Window
+{result['window']}
+
+### 🤖 Guardian Opinion
+{result['opinion']}
+""")
+
+            st.link_button(
+                "View Stock Chart",
+                f"https://finance.yahoo.com/quote/{custom_symbol.upper()}"
+            )
+
+        else:
+
+            st.warning(
+                "Stock unavailable or outside selected price range."
+            )
+
+# =========================================
+# BROKER LINKS
+# =========================================
+st.write("---")
+
+st.header("💳 Beginner Investment Platforms")
+
+st.markdown("""
+- https://robinhood.com  
+- https://www.webull.com  
+- https://www.sofi.com/invest  
+- https://www.fidelity.com  
+""")

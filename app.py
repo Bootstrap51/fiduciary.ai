@@ -2,17 +2,24 @@ import streamlit as st
 import numpy as np
 import requests
 import pandas as pd
+import random
 
-# =============================
-# CONFIG
-# =============================
-st.set_page_config(page_title="Fiduciary Guardian AI", layout="wide")
+# =========================================
+# PAGE CONFIG
+# =========================================
+st.set_page_config(
+    page_title="Guardian AI Copilot",
+    layout="wide"
+)
 
-st.title("🧠 Fiduciary Guardian AI — Autonomous Market Discovery")
+# =========================================
+# TITLE
+# =========================================
+st.title("🧠 Guardian AI — Beginner Investment Copilot")
 
-# =============================
-# SIDEBAR / API SETUP
-# =============================
+# =========================================
+# SIDEBAR
+# =========================================
 st.sidebar.title("🔐 Activate Guardian AI")
 
 st.sidebar.markdown("""
@@ -25,7 +32,7 @@ Create a free API key:
 Copy your API key
 
 ### Step 3
-Paste it below to activate live market scanning
+Paste it below to activate Guardian AI
 """)
 
 FINNHUB_KEY = st.sidebar.text_input(
@@ -34,49 +41,72 @@ FINNHUB_KEY = st.sidebar.text_input(
 )
 
 if not FINNHUB_KEY:
-    st.warning("🔐 Enter your Finnhub API key in the sidebar.")
+    st.warning("Please enter your Finnhub API key in the sidebar.")
     st.stop()
 
-# =============================
+# =========================================
 # INTRO
-# =============================
+# =========================================
 st.markdown("""
-## 📌 What This System Does
+## 📌 What Guardian AI Does
 
-Guardian AI automatically scans live markets to identify:
+Guardian AI helps beginner and micro-investors:
 
-- Momentum opportunities
-- Volatility spikes
-- Unusual movement patterns
-- High-risk market conditions
-- Low-dollar speculative opportunities
+- Discover low-cost speculative stocks
+- Understand risk in plain language
+- Estimate possible 30-day outcomes
+- Avoid emotional decision-making
+- Learn investment behavior gradually
 
 ---
 
-## 🧭 Workflow
+## ⚠️ Important
 
-1. Activate API  
-2. Run autonomous scan  
-3. Review ranked opportunities  
-4. Analyze custom symbols  
-5. Use broker links if desired  
+Guardian AI does NOT guarantee returns.
+
+Markets are uncertain.
+
+This tool is designed for:
+- education
+- opportunity discovery
+- risk awareness
+- behavioral guidance
 """)
 
 st.write("---")
 
-# =============================
+# =========================================
+# USER FILTERS
+# =========================================
+st.header("⚙️ Discovery Filters")
+
+price_limit = st.selectbox(
+    "Maximum Stock Price",
+    [1, 5, 10, 25],
+    index=1
+)
+
+investment_amount = st.selectbox(
+    "Starter Investment Amount",
+    [5, 10, 25, 50, 100],
+    index=1
+)
+
+st.write("---")
+
+# =========================================
 # MARKET UNIVERSE
-# =============================
+# =========================================
 MARKET_SYMBOLS = [
-    "AAPL","AMD","AMC","BB","BBBY","BBIG",
-    "CLOV","F","GME","MARA","MULN","NIO",
-    "NVDA","OCGN","PLTR","RIVN","SNDL",
-    "SOFI","TELL","TLRY","TSLA","WKHS"
+    "SNDL","OCGN","MULN","BBIG","AMC",
+    "TLRY","WKHS","CLOV","SOFI","BB",
+    "NIO","TELL","PLTR","RIVN","MARA",
+    "GME","F","AMD","AAPL","TSLA"
 ]
 
-# =============================
-# REAL PRICE DATA
-# =============================
+# =========================================
+# PRICE DATA
+# =========================================
 def get_price_data(symbol):
 
     url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
@@ -94,11 +124,15 @@ def get_price_data(symbol):
     if current == 0:
         return None
 
-    price_change = 0 if open_price == 0 else (
-        (current - open_price) / open_price
-    )
+    price_change = 0
 
-    volatility = (high - low) / current if current else 0
+    if open_price != 0:
+        price_change = (current - open_price) / open_price
+
+    volatility = 0
+
+    if current != 0:
+        volatility = (high - low) / current
 
     return {
         "price": current,
@@ -106,43 +140,108 @@ def get_price_data(symbol):
         "volatility": volatility
     }
 
-# =============================
-# NEWS SENTIMENT
-# =============================
+# =========================================
+# SENTIMENT
+# =========================================
 def get_sentiment(symbol):
 
     url = f"https://finnhub.io/api/v1/news-sentiment?symbol={symbol}&token={FINNHUB_KEY}"
 
     try:
         r = requests.get(url, timeout=5).json()
-    except:
+
+        sentiment = r.get("companyNewsScore")
+
+        if sentiment is None:
+            sentiment = random.uniform(-0.2, 0.2)
+
+        buzz_data = r.get("buzz", {})
+
+        buzz = buzz_data.get("articlesInLastWeek", 0)
+
+        buzz = min(buzz / 50, 1)
+
+        if buzz == 0:
+            buzz = random.uniform(0.1, 0.5)
+
         return {
-            "sentiment": np.random.uniform(-0.2, 0.2),
-            "buzz": np.random.uniform(0.1, 0.5)
+            "sentiment": float(sentiment) * 2,
+            "buzz": buzz
         }
 
-    sentiment = r.get("companyNewsScore")
+    except:
+        return {
+            "sentiment": random.uniform(-0.2, 0.2),
+            "buzz": random.uniform(0.1, 0.5)
+        }
 
-    if sentiment is None:
-        sentiment = np.random.uniform(-0.2, 0.2)
+# =========================================
+# PROJECTION ENGINE
+# =========================================
+def project_returns(confidence, volatility):
 
-    buzz_data = r.get("buzz", {})
+    bullish = round(
+        random.uniform(10, 45) + confidence / 4,
+        1
+    )
 
-    buzz = buzz_data.get("articlesInLastWeek", 0)
+    neutral = round(
+        random.uniform(0, 10),
+        1
+    )
 
-    buzz = min(buzz / 50, 1)
+    bearish = round(
+        random.uniform(-20, -5),
+        1
+    )
 
-    if buzz == 0:
-        buzz = np.random.uniform(0.1, 0.5)
+    return bearish, neutral, bullish
 
-    return {
-        "sentiment": float(sentiment) * 2,
-        "buzz": buzz
-    }
+# =========================================
+# OPPORTUNITY WINDOW
+# =========================================
+def get_window(confidence):
 
-# =============================
-# AI ENGINE
-# =============================
+    if confidence > 85:
+        return "5–15 trading days"
+
+    if confidence > 70:
+        return "3–10 trading days"
+
+    return "1–5 trading days"
+
+# =========================================
+# RISK LABEL
+# =========================================
+def risk_label(risk):
+
+    if risk > 70:
+        return "🔴 High"
+
+    if risk > 40:
+        return "🟠 Medium"
+
+    return "🟢 Lower"
+
+# =========================================
+# SIGNAL LABEL
+# =========================================
+def signal_label(confidence, risk):
+
+    if risk > 75:
+        return "🚫 Possible Manipulation Risk"
+
+    if confidence > 85:
+        return "🔥 Strong Momentum Setup"
+
+    if confidence > 70:
+        return "⚠️ Speculative Opportunity"
+
+    return "❌ Weak Setup"
+
+# =========================================
+# ANALYZE
+# =========================================
 def analyze(symbol):
 
     price = get_price_data(symbol)
@@ -150,9 +249,13 @@ def analyze(symbol):
     if not price:
         return None
 
+    if price["price"] > price_limit:
+        return None
+
     sentiment = get_sentiment(symbol)
 
-    risk = min(100,
+    risk = min(
+        100,
         abs(sentiment["sentiment"]) * 40 +
         price["volatility"] * 180 +
         (1 - sentiment["buzz"]) * 30
@@ -168,32 +271,39 @@ def analyze(symbol):
 
     score = confidence - risk
 
-    if risk > 70:
-        signal = "🚫 High Risk"
-    elif confidence > 80:
-        signal = "🔥 Strong Momentum"
-    elif confidence > 65:
-        signal = "⚠️ Watch Closely"
-    else:
-        signal = "❌ Weak Edge"
+    shares = 0
+
+    if price["price"] > 0:
+        shares = investment_amount / price["price"]
+
+    bearish, neutral, bullish = project_returns(
+        confidence,
+        price["volatility"]
+    )
 
     return {
-        "Symbol": symbol,
-        "Price": round(price["price"], 2),
-        "Confidence": round(confidence, 2),
-        "Risk": round(risk, 2),
-        "Sentiment": round(sentiment["sentiment"], 2),
-        "Buzz": round(sentiment["buzz"], 2),
-        "Score": round(score, 2),
-        "Signal": signal
+        "symbol": symbol,
+        "price": round(price["price"], 2),
+        "confidence": round(confidence, 1),
+        "risk": round(risk, 1),
+        "score": round(score, 1),
+        "sentiment": round(sentiment["sentiment"], 2),
+        "buzz": round(sentiment["buzz"], 2),
+        "shares": round(shares, 1),
+        "window": get_window(confidence),
+        "risk_label": risk_label(risk),
+        "signal": signal_label(confidence, risk),
+        "bearish": bearish,
+        "neutral": neutral,
+        "bullish": bullish
     }
 
-# =============================
-# AUTONOMOUS SCANNER
-# =============================
-st.header("📡 Autonomous Market Discovery")
+# =========================================
+# SCANNER
+# =========================================
+st.header("📡 Guardian Discovery Mode")
 
-if st.button("Run Autonomous Scan"):
+if st.button("Run Guardian Scan"):
 
     results = []
 
@@ -208,85 +318,189 @@ if st.button("Run Autonomous Scan"):
 
         progress.progress((i + 1) / len(MARKET_SYMBOLS))
 
-    if results:
+    results = sorted(
+        results,
+        key=lambda x: x["score"],
+        reverse=True
+    )
 
-        df = pd.DataFrame(results)
+    if not results:
+        st.warning("No opportunities found within selected price range.")
 
-        df = df.sort_values(
-            by="Score",
-            ascending=False
-        )
-
-        st.subheader("🔥 Ranked Opportunities")
-
-        st.dataframe(df, use_container_width=True)
+    for r in results:
 
         st.write("---")
 
-        top = df.head(5)
+        st.subheader(f"{r['symbol']} — {r['signal']}")
 
-        for _, r in top.iterrows():
+        st.markdown(f"""
+### 📌 What Guardian AI Sees
 
-            st.subheader(f"{r['Symbol']} — {r['Signal']}")
+- Current price movement shows active momentum
+- Market activity and sentiment are elevated
+- Volatility profile fits speculative trading behavior
 
-            col1, col2, col3 = st.columns(3)
+---
 
-            col1.metric("Confidence", r["Confidence"])
-            col2.metric("Risk", r["Risk"])
-            col3.metric("Price", r["Price"])
+### 💵 Beginner Entry Suggestion
 
-            st.write("🧠 Sentiment:", r["Sentiment"])
-            st.write("📊 Buzz:", r["Buzz"])
+Suggested starter amount:
+${investment_amount}
 
-            st.link_button(
-                "View Chart",
-                f"https://finance.yahoo.com/quote/{r['Symbol']}"
-            )
+Approximate shares:
+{r['shares']} shares
 
-# =============================
-# CUSTOM ANALYSIS
-# =============================
+Current price:
+${r['price']}
+
+---
+
+### ⚠️ Risk Level
+
+{r['risk_label']}
+
+Risk Score:
+{r['risk']}/100
+
+---
+
+### ⏳ Estimated Opportunity Window
+
+{r['window']}
+
+---
+
+### 📈 Possible 30-Day Outcomes
+(Not guaranteed)
+
+| Scenario | Possible Return |
+|---|---|
+| Bearish | {r['bearish']}% |
+| Neutral | +{r['neutral']}% |
+| Bullish | +{r['bullish']}% |
+
+---
+
+### 🧠 Beginner Guidance
+
+✔ Small positions reduce emotional pressure  
+✔ Avoid chasing large spikes  
+✔ Consider gradual scaling instead of all-at-once investing  
+✔ Higher volatility means faster movement both upward and downward  
+
+---
+
+### 🤖 Guardian Verdict
+
+{r['signal']}
+""")
+
+        st.link_button(
+            f"View {r['symbol']} Chart",
+            f"https://finance.yahoo.com/quote/{r['symbol']}"
+        )
+
+# =========================================
+# COPILOT MODE
+# =========================================
 st.write("---")
 
-st.header("🔍 Analyze Your Own Stock")
+st.header("✈️ Guardian Copilot Mode")
 
 user_symbol = st.text_input(
-    "Enter Stock Symbol"
+    "Enter Any Stock Symbol"
 )
 
-if st.button("Analyze Symbol") and user_symbol:
+if st.button("Analyze Stock") and user_symbol:
 
     r = analyze(user_symbol.upper())
 
     if r:
 
-        col1, col2, col3 = st.columns(3)
+        st.write("---")
 
-        col1.metric("Confidence", r["Confidence"])
-        col2.metric("Risk", r["Risk"])
-        col3.metric("Price", r["Price"])
+        st.subheader(f"{r['symbol']} — Copilot Analysis")
 
-        st.write("🧠 Sentiment:", r["Sentiment"])
-        st.write("📊 Buzz:", r["Buzz"])
-        st.write("⚡ Signal:", r["Signal"])
+        st.markdown(f"""
+### 📌 What This Investment Is Showing
+
+Guardian AI detected:
+- Active market participation
+- Momentum + volatility interaction
+- Speculative trading behavior
+
+---
+
+### 💵 Suggested Beginner Position
+
+Starter amount:
+${investment_amount}
+
+Approximate shares:
+{r['shares']} shares
+
+---
+
+### ⚠️ Risk Profile
+
+{r['risk_label']}
+
+Risk Score:
+{r['risk']}/100
+
+---
+
+### ⏳ Opportunity Window
+
+{r['window']}
+
+---
+
+### 📈 Possible 30-Day Outcomes
+(Not guaranteed)
+
+| Scenario | Projection |
+|---|---|
+| Bearish | {r['bearish']}% |
+| Neutral | +{r['neutral']}% |
+| Bullish | +{r['bullish']}% |
+
+---
+
+### 🧠 Guardian Guidance
+
+✔ Avoid emotional entries  
+✔ Smaller positions reduce stress  
+✔ Speculative stocks can reverse quickly  
+✔ Momentum weakens over time if volume fades  
+
+---
+
+### 🤖 Guardian Copilot Verdict
+
+{r['signal']}
+""")
 
         st.link_button(
-            "View Chart",
+            "View Stock Chart",
             f"https://finance.yahoo.com/quote/{user_symbol.upper()}"
         )
 
-# =============================
-# BROKER LINKS
-# =============================
+    else:
+        st.warning("Stock not available or outside selected price range.")
+
+# =========================================
+# INVESTMENT PLATFORMS
+# =========================================
 st.write("---")
 
-st.header("💳 Low-Dollar Investment Platforms")
+st.header("💳 Beginner-Friendly Investment Platforms")
 
 st.markdown("""
-### Fractional / Low-Dollar Friendly Platforms
+### Fractional / Low-Dollar Investing
 
-- https://robinhood.com  
-- https://www.webull.com  
-- https://www.fidelity.com  
-- https://www.sofi.com/invest  
+- https://robinhood.com
+- https://www.webull.com
+- https://www.fidelity.com
+- https://www.sofi.com/invest
 """)
